@@ -1,0 +1,11 @@
+1. First we will make connection to our database in the file db.js(config/db.js)
+2.we are going to set the .env file where we will save our secure data like db url jwt_secert and other api kyes
+3.we will create a model folder and inside it we will make user.js where we are going to make the schema of user 
+4. we are  not going to ask user their role when login bc it is risk and 
+5.we are going to make the bcrypt mongosee pre function so when ever we will save pass word it will automatically save the user password in hashed form we are going to use mongoose (pre-save middleware)
+6.Now we are going to use the compare password so when the user login or wants to updates he needs to give password so we will make a function matchPassword() so we can call it and use whenever we needed instead of making every time .Inside the user.js
+
+7.we will generate jwt token inside our genreateTokens.js which  we will use when we are setting cookies and this token will be sent to browser so when the user again visit with in the setted time it will allow user to login with giving login credentials
+
+
+8. we will make the controlles folder first we will make cookies here and then use these cookies in routes  where will make the core logic of routes we will 
