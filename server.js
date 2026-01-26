@@ -28,7 +28,14 @@ app.use(cookieParser());
 // app.use("/api/auth", require("./routes/authRoutes"));
 
 // Connect to MongoDB
-connectDB();
+connectDB()
+// .then(()=>{
+  
+// })
+// .catch((err)=>{
+//   console.log("Db connection fail !!!!",err)
+// })
+
 app.get("/",(req,res)=>{
     res.send("hi ")
 })
