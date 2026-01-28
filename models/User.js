@@ -34,3 +34,23 @@ userSchema.methods.mathchPassword = async function (enteredPassword) {
 
 
 module.exports = mongoose.model("User", userSchema);
+
+/**
+ * we can mak access token and user tokenn here so we can directly use and export 
+ * userSchema.methods.generateAccessToken=function(){
+ *               return jwt.sign(
+         {id:this._id , role :this.role, email: this.email , name:this.name},
+         process.env.ACCESS_TOKEN_SECRET, 
+         { expiresIn: process.env.ACCESS_TOKEN_EXPIRY}
+     )
+ * }
+
+ * 
+ * userSchema.methods.generateRefresgToken=async function(){
+ *                  return jwt.sign(
+         {id:this._id},
+         process.env.ACCESS_REFRESH_SECRET, 
+         { expiresIn: process.env.REFRESH_TOKEN_EXPIRY}
+     )
+ * }
+ */

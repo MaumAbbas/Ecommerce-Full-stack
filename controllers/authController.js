@@ -7,7 +7,7 @@ const generateToken = require("./utils/generateToken");
 //we will make the cookie function that send the token to broweser and and it get the token as parameter from where it is called 
 
 const sendTokenCookies=(res,token)=>{
-    res.cookies("token" ,token,{
+    res.cookie("token" ,token,{
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: "strict",

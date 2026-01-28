@@ -10,5 +10,6 @@ const generateToken = (user)=>{
 module.exports = generateToken;
 
 /**
- * we are making a function and export it name is genrateToken
+ * we are making a function and export it name is genrateToken 
+ * we can also make it in the user.js  model so we can directly generate the tokent there and use 
  */
