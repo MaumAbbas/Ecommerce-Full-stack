@@ -9,3 +9,164 @@
 
 
 8. we will make the controlles folder first we will make cookies here and then use these cookies in routes  where will make the core logic of routes we will 
+
+9.we are going to use the multer to file upload and using cloudnairy to store the file and its gives us url which we store in database
+
+10.strategy :
+            user will upload the file using multer and we temporaly store that at memory means ram then using cloudinary we will get the file from there and upload to the cloudinary 
+
+
+11.this is for disk storage
+multer.js
+// multer.js
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
+
+// Temp folder for uploads
+const uploadPath = path.join(__dirname, "../public/temp");
+
+// Create folder if it doesn't exist
+if (!fs.existsSync(uploadPath)) {
+  fs.mkdirSync(uploadPath, { recursive: true });
+}
+
+// Disk storage
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadPath);
+  },
+  filename: (req, file, cb) => {
+    const uniqueName =
+      Date.now() + "-" + Math.round(Math.random() * 1e9) + path.extname(file.originalname);
+    cb(null, uniqueName);
+  },
+});
+
+// Multer instance
+const upload = multer({
+  storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+  },
+});
+
+module.exports = upload;
+
+cloudinary.js// cloudinary.js
+const cloudinary = require("cloudinary").v2;
+const fs = require("fs/promises");
+
+// Cloudinary config
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+// Upload function
+const uploadOnCloudinary = async (localFilePath, options = {}) => {
+  if (!localFilePath) return null;
+
+  try {
+    const response = await cloudinary.uploader.upload(localFilePath, {
+      resource_type: "auto",
+      folder: options.folder || "uploads",
+      quality: "auto",
+      fetch_format: "auto",
+      overwrite: false,
+      invalidate: true,
+      unique_filename: true,
+      transformation: [
+        { quality: "auto", fetch_format: "auto" },
+        { width: 1200, height: 1200, crop: "limit" },
+      ],
+      ...options,
+    });
+
+    console.log("Upload successful:", response.secure_url);
+
+    // Delete local temp file after upload
+    await fs.unlink(localFilePath).catch(() => {});
+
+    return {
+      url: response.secure_url,
+      public_id: response.public_id,
+      format: response.format,
+      width: response.width,
+      height: response.height,
+    };
+  } catch (error) {
+    console.error("Cloudinary upload failed:", error.message);
+    await fs.unlink(localFilePath).catch(() => {});
+    return null;
+  }
+};
+
+module.exports = uploadOnCloudinary;
+
+
+route.js// routes.js
+const express = require("express");
+const router = express.Router();
+const upload = require("./multer"); // multer diskStorage
+const uploadOnCloudinary = require("./cloudinary");
+
+// Single image upload route
+router.post("/upload", upload.single("image"), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+
+    // ✅ Use multer's req.file.path as localFilePath
+    const localFilePath = req.file.path;
+
+    const result = await uploadOnCloudinary(localFilePath, { folder: "products" });
+
+    if (!result) return res.status(500).json({ message: "Cloudinary upload failed" });
+
+    res.status(200).json({
+      message: "File uploaded successfully",
+      data: result,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+module.exports = router;
+
+
+
+server.js// server.js
+const express = require("express");
+const app = express();
+const routes = require("./routes");
+require("dotenv").config();
+
+// Middleware
+app.use(express.json());
+app.use("/public", express.static("public")); // optional, serve temp folder if needed
+
+// Routes
+app.use("/api", routes);
+
+// Start server
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+
+//logic 
+req.file.filename = uniqueName;        // just the filename
+req.file.path = destination + "/" + uniqueName;  // full local path
+req.file = {
+  originalname: 'cat.jpg',
+  filename: '1675212345678-345678901.jpg', // your uniqueName
+  path: 'public/temp/1675212345678-345678901.jpg', // full path
+  destination: 'public/temp',
+  size: 34567,
+  mimetype: 'image/jpeg'
+};
+
+const localFilePath = req.file.path; // full path
+const result = await uploadOnCloudinary(localFilePath);

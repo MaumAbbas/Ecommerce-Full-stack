@@ -23,6 +23,7 @@ const productSchema = new mongoose.Schema({
     images: [
         {
             type: String
+            //we can also take id for each picture 
         }
     ],
     //each product belong to category so we will also store the product catefgory
