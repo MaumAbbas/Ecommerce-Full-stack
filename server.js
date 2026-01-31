@@ -9,7 +9,7 @@ const cors = require("cors");
 
 const cookieParser = require("cookie-parser");
 const connectDB = require("./config/db"); // MongoDB connection
-const User = require("./models/user");
+
 //In future this will be in another folder
 const generateToken=require("./utils/generateToken")
 
@@ -17,6 +17,7 @@ const generateToken=require("./utils/generateToken")
 const app = express();
 
 // Middleware
+
 app.use(cors({
   origin: "http://localhost:5173", // Your React frontend
   credentials: true,
@@ -36,27 +37,11 @@ connectDB()
 //   console.log("Db connection fail !!!!",err)
 // })
 
-app.get("/",(req,res)=>{
-    res.send("hi ")
-})
+//importing routes
+const authRoutes = require("./routes/authRoutes");
 
-
-app.post("/add", async (req, res) => {
-  try {
-    const { name, email, password, role } = req.body;
-    const user = new User({ name, email, password, role });
-    await user.save();
-
-    //i will remove this later
-    const token = generateToken(user);
-    console.log(token)
-
-    res.status(201).json({ message: "User created successfully", user });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Server error", error: err.message });
-  }
-});
+// Route declarations
+app.use("/api/auth", authRoutes);
 
 // Start the server
 const PORT = process.env.PORT || 5000;
