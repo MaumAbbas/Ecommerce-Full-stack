@@ -170,3 +170,105 @@ req.file = {
 
 const localFilePath = req.file.path; // full path
 const result = await uploadOnCloudinary(localFilePath);
+
+
+
+
+// We can use this authController.js if we want to allow direct login after user register no need to logi 
+(
+  
+const User = require("../models/User");
+const generateToken = require("../utils/generateToken");
+
+const sendCookie = (res, token) => {
+  res.cookie("token", token, {
+    httpOnly: true,
+    sameSite: "strict",
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  });
+};
+
+// Helper to return safe user data
+const getSafeUser = (user) => ({
+  _id: user._id,
+  name: user.name,
+  email: user.email,
+  role: user.role,
+});
+
+exports.register = async (req, res) => {
+  try {
+    const { name, email, password, role } = req.body;
+
+    // Basic validation
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: "All fields are required" });
+    }
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(409).json({ message: "User already exists" });
+    }
+
+    // Create user
+    const user = await User.create({
+      name,
+      email,
+      password,
+      role: role || "customer",
+    });
+
+    // Generate token & send cookie
+    const token = generateToken(user);
+    sendCookie(res, token);
+
+    // Send safe user data
+    res.status(201).json({
+      message: "Registration successful",
+      user: getSafeUser(user),
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ message: "Email and password required" });
+    }
+
+    const user = await User.findOne({ email }).select("+password");
+
+    if (!user || !(await user.matchPassword(password))) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    const token = generateToken(user);
+    sendCookie(res, token);
+
+    res.json({
+      message: "Login successful",
+      user: getSafeUser(user),
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.logout = (req, res) => {
+  res.cookie("token", "", { httpOnly: true, expires: new Date(0) });
+  res.json({ message: "Logged out successfully" });
+};
+
+exports.me = (req, res) => {
+  res.json(getSafeUser(req.user));
+};
+
+)
+
+
+till 1 date we created only register and login we will continue further
