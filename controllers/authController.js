@@ -34,10 +34,12 @@ exports.register = async (req, res) => {
         }
 
         //we will check if the user alread exists 
-        let existingUser = await User.findOne({ email });
+        let existingUser = await User.findOne({ 
+            $or : [{name , email }] //checks both 
+         });
         //just for now we are sending user details we want to check the postman
         if (existingUser) {
-            return res.status(409).json({ message: "User already exists with this email" });
+            return res.status(409).json({ message: "User already exists with this email or name" }); //we can make it bettter if we do sepreatly
         }
 
         // Now here we will create the user
@@ -49,7 +51,16 @@ exports.register = async (req, res) => {
         });
 
         //This will send a message if user is created succesfully
-        res.status(201).json({ message: "User created successfully", user: getSafeUser(user) });
+        res.status(201).json({ message: "User created successfully", user: getSafeUser(user) });// inseted of this we can do which is more good is this 
+        /**
+         * const createdUser = await User.findById(user._id).select(
+         *          "-password -refreshtoken"
+         * )
+         * 
+         * if(!createdUser){
+         *          res.status(201).json({createdUser})
+         * }
+         */
 
 
 

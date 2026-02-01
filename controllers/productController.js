@@ -2,11 +2,11 @@ const Product = require("../models/Product");
 const cloudinary = require("../config/cloudinary");
 
 exports.createProduct = async (req, res) => {
-  if (!req.file) {
+  if (!req.file) {  // multer gives us this bc we use single that why its giving file if we use field name it wil gives us us files
     return res.status(400).json({ message: "No image file provided" });
   }
 
-  const upload = cloudinary.uploader.upload_stream(
+  const uploadToCloudinary = cloudinary.uploader.upload_stream(
     {
       folder: "products",
       transformation: [
@@ -29,8 +29,8 @@ exports.createProduct = async (req, res) => {
       }
 
       try {
-        const product = await Product.create({
-          ...req.body,
+        const product = await Product.create({  //this is async process so after this upload.end(req.file.buffer); we will get the url and other things
+          ...req.body, //means other details
           seller: req.user._id,
           image: {
             url: result.secure_url,
@@ -49,7 +49,7 @@ exports.createProduct = async (req, res) => {
     }
   );
 
-  upload.end(req.file.buffer);
+  uploadToCloudinary.end(req.file.buffer); // calling function here and passing the argument  adn we can not use awiat bc uploader.stream doesnot return promise so if we want to use await we have to wrap uploadToCloudinaty to promise just i did in productController2.txt
 };
 exports.getProducts = async (req, res) => {
   try {

@@ -1,0 +1,149 @@
+if we have used fileds we will use this method
+const Product = require("../models/Product");
+const cloudinary = require("../config/cloudinary");
+
+// Helper to upload a single file buffer to Cloudinary using stream
+const uploadToCloudinary = (buffer, folder) => {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder,
+        transformation: [
+          { quality: "auto", fetch_format: "auto" },
+          { width: 1200, height: 1200, crop: "fill", gravity: "auto" },
+        ],
+      },
+      (err, result) => {
+        if (err) return reject(err);
+        resolve(result);
+      }
+    );
+
+    stream.end(buffer);
+  });
+};
+
+exports.createProduct = async (req, res) => {
+  try {
+    if (!req.files || !req.files.avatar || !req.files.background) {
+      return res.status(400).json({ message: "Both files are required" });
+    }
+
+    // Get buffers from Multer
+    const avatarBuffer = req.files.avatar[0].buffer;
+    const backgroundBuffer = req.files.background[0].buffer;
+
+    // Upload both files to Cloudinary in parallel
+    const [avatarResult, backgroundResult] = await Promise.all([
+      uploadToCloudinary(avatarBuffer, "products/avatar"),
+      uploadToCloudinary(backgroundBuffer, "products/background"), // calling function here and passing the argument 
+    ]);
+
+    // Save product with file URLs
+    const product = await Product.create({
+      ...req.body, // other details
+      seller: req.user._id,
+      images: {
+        avatar: {
+          url: avatarResult.secure_url,
+          public_id: avatarResult.public_id,
+        },
+        background: {
+          url: backgroundResult.secure_url,
+          public_id: backgroundResult.public_id,
+        },
+      },
+    });
+
+    res.status(201).json(product);
+  } catch (error) {
+    console.error("Product creation error:", error);
+    res.status(500).json({
+      message: "Product creation failed",
+      error: error.message,
+    });
+  }
+};
+
+
+
+//for single we can also do this 
+utils/cloudinaryUpload.js
+const cloudinary = require("../config/cloudinary");
+
+/**
+ * Upload a file buffer to Cloudinary
+ * @param {Buffer} buffer - file buffer from multer
+ * @param {string} folder - folder name in Cloudinary
+ * @returns {Promise<Object>} - Cloudinary result {secure_url, public_id, ...}
+ */
+const uploadToCloudinary = (buffer, folder) => {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder,
+        transformation: [
+          { quality: "auto", fetch_format: "auto" },
+          { width: 1200, height: 1200, crop: "fill", gravity: "auto" },
+        ],
+      },
+      (err, result) => {
+        if (err) return reject(err);
+        resolve(result);
+      }
+    );
+
+    // Send the buffer to Cloudinary
+    stream.end(buffer);
+  });
+};
+
+module.exports = uploadToCloudinary;
+
+
+controllers/productController.js
+
+const Product = require("../models/Product");
+const uploadToCloudinary = require("../utils/cloudinaryUpload");
+
+exports.createProduct = async (req, res) => {
+  try {
+    // Check if file exists (single file upload)
+    if (!req.file) {
+      return res.status(400).json({ message: "No image file provided" });
+    }
+
+    // Upload file to Cloudinary
+    const result = await uploadToCloudinary(req.file.buffer, "products");
+
+    // Create product in MongoDB with Cloudinary URL
+    const product = await Product.create({
+      ...req.body, // other details
+      seller: req.user._id,
+      image: {
+        url: result.secure_url,
+        public_id: result.public_id,
+      },
+    });
+
+    res.status(201).json(product);
+  } catch (error) {
+    console.error("Product creation error:", error);
+    res.status(500).json({
+      message: "Product creation failed",
+      error: error.message,
+    });
+  }
+};
+
+
+const router = require("express").Router();
+const upload = require("../middleware/upload");
+const { protect } = require("../middleware/authMiddleware");
+const { createProduct, getProducts } = require("../controllers/productController");
+
+router.post("/", protect, upload.single("image"), createProduct);
+router.get("/", getProducts);
+
+module.exports = router;
+

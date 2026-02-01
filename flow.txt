@@ -79,7 +79,7 @@ const uploadOnCloudinary = async (localFilePath, options = {}) => {
       unique_filename: true,
       transformation: [
         { quality: "auto", fetch_format: "auto" },
-        { width: 1200, height: 1200, crop: "limit" },
+        { width: 1200, height: 1200, crop:  limit" },
       ],
       ...options,
     });
@@ -118,7 +118,9 @@ router.post("/upload", upload.single("image"), async (req, res) => {
     if (!req.file) return res.status(400).json({ message: "No file uploaded" });
 
     // ✅ Use multer's req.file.path as localFilePath
-    const localFilePath = req.file.path;
+    const localFilePath = req.file.path;  // if we hav multiples images like we used the fields we have to do                   const localFilePath = req.files?.avatar[0]?.path   Returns the full file path on the server where Multer saved it:   bc upload.fields([]) is used  
+
+    //we write 0 bc insde fild it store the images in form of array so thats why we do [0].path
 
     const result = await uploadOnCloudinary(localFilePath, { folder: "products" });
 
