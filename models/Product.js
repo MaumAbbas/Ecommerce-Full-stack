@@ -20,6 +20,8 @@ const productSchema = new mongoose.Schema({
     },
     //we can store images directly in data base i buffer format but we dont do that bc it make database heavy 
     //so we will keep this in our server means in sperate folder and there store in the array image bc there can be many images of product
+    //we update the image schema bc we are only uploading one image so need of array 
+    //In future we can change this to array
     image: {
         url: String,
         public_id: String
