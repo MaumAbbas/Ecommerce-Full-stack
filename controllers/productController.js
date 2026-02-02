@@ -1,7 +1,13 @@
 const Product = require("../models/Product");
 const cloudinary = require("../config/cloudinary");
+const upload = require("../middleware/upload.js");
 
 exports.createProduct = async (req, res) => {
+
+  const { title, description, price, stock, category } = req.body;
+  if (!title || !description || !price || !category) {
+    return res.status(400).json({ message: "Please provide all required fields" });
+  }
   if (!req.file) {  // multer gives us this bc we use single that why its giving file if we use field name it wil gives us us files
     return res.status(400).json({ message: "No image file provided" });
   }
@@ -30,7 +36,11 @@ exports.createProduct = async (req, res) => {
 
       try {
         const product = await Product.create({  //this is async process so after this upload.end(req.file.buffer); we will get the url and other things
-          ...req.body, //means other details
+          title,
+          description,
+          price,
+          stock: stock || 0,
+          category,
           seller: req.user._id,
           image: {
             url: result.secure_url,

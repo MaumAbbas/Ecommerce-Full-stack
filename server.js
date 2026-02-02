@@ -12,6 +12,7 @@ const connectDB = require("./config/db"); // MongoDB connection
 
 //In future this will be in another folder
 const generateToken=require("./utils/generateToken")
+ 
 
 // Initialize Express app
 const app = express();
@@ -39,9 +40,12 @@ connectDB()
 
 //importing routes
 const authRoutes = require("./routes/authRoutes");
+const productRoutes =require("./routes/productRoutes")
 
 // Route declarations
 app.use("/api/auth", authRoutes);
+app.use("/api/product",productRoutes)
+
 
 // Start the server
 const PORT = process.env.PORT || 5000;

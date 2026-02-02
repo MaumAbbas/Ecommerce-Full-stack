@@ -95,7 +95,9 @@ exports.login = async (req, res) => {
         res.json({
             message: "Login successful",
             user: getSafeUser(user),
+            
         });
+        
 
 
     } catch (err) {

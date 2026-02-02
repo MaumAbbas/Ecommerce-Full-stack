@@ -28,7 +28,7 @@ userSchema.pre("save", async function () {
 
 //matchpassword is function name we are creating to comapare the enterpassword that we will get from the login route or we will call this function inside the login route so it will also give the enterpassword as parameter to this function. it automatically convert the enterd password into hash and then compare to the store this.password hash
 
-userSchema.methods.mathchPassword = async function (enteredPassword) {
+userSchema.methods.matchPassword = async function (enteredPassword) {
     return await bcrypt.compare(enteredPassword, this.password)
 }
 

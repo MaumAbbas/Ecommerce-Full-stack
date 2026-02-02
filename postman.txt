@@ -1,0 +1,2 @@
+if we want to send file from postman we can use the formdata option in postman
+In form keys means the filed we want to send their value like email etc
