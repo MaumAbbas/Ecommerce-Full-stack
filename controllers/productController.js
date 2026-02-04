@@ -5,14 +5,30 @@ const upload = require("../middleware/upload.js");
 exports.createProduct = async (req, res) => {
 
   const { title, description, price, stock, category } = req.body;
-  if (!title || !description || !price || !category) {
+  // Change: validate required fields explicitly (avoid treating 0 as "missing").
+  if (!title || !description || price === undefined || price === null || !category) {
     return res.status(400).json({ message: "Please provide all required fields" });
   }
   if (!req.file) {  // multer gives us this bc we use single that why its giving file if we use field name it wil gives us us files
     return res.status(400).json({ message: "No image file provided" });
   }
 
-  const uploadToCloudinary = cloudinary.uploader.upload_stream(
+  // Change: normalize numeric fields to avoid storing strings and catch NaN.
+  const normalizedPrice = Number(price);
+  const normalizedStock = stock === undefined || stock === null ? 0 : Number(stock);
+  if (Number.isNaN(normalizedPrice) || Number.isNaN(normalizedStock)) {
+    return res.status(400).json({ message: "Price and stock must be numbers" });
+  }
+
+  // Change: guard against missing auth context to avoid crashing when req.user is undefined.
+  if (!req.user || !req.user._id) {
+    return res.status(401).json({ message: "Unauthorized: missing user context" });
+  }
+
+  let uploadToCloudinary;
+  try {
+    // Change: wrap stream creation in try/catch in case Cloudinary throws synchronously.
+    uploadToCloudinary = cloudinary.uploader.upload_stream(
     {
       folder: "products",
       transformation: [
@@ -25,7 +41,7 @@ exports.createProduct = async (req, res) => {
         },
       ],
     },
-    async (err, result) => {
+      async (err, result) => {
       if (err) {
         console.error("Cloudinary upload error:", err);
         return res.status(500).json({
@@ -38,8 +54,8 @@ exports.createProduct = async (req, res) => {
         const product = await Product.create({  //this is async process so after this upload.end(req.file.buffer); we will get the url and other things
           title,
           description,
-          price,
-          stock: stock || 0,
+          price: normalizedPrice,
+          stock: normalizedStock,
           category,
           seller: req.user._id,
           image: {
@@ -56,8 +72,15 @@ exports.createProduct = async (req, res) => {
           error: dbError.message,
         });
       }
-    }
-  );
+      }
+    );
+  } catch (cloudinaryError) {
+    console.error("Cloudinary init error:", cloudinaryError);
+    return res.status(500).json({
+      message: "Image upload failed to start",
+      error: cloudinaryError.message,
+    });
+  }
 
   uploadToCloudinary.end(req.file.buffer); // calling function here and passing the argument  adn we can not use awiat bc uploader.stream doesnot return promise so if we want to use await we have to wrap uploadToCloudinaty to promise just i did in productController2.txt
 };
