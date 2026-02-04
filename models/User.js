@@ -3,13 +3,16 @@ const bcrypt = require("bcryptjs");
 
 const userSchema = new mongoose.Schema(
     {
-        name: { type: String, required: true },
+        name: { type: String, required: true, unique :true },
         email: { type: String, required: true, unique: true },
         password: { type: String, required: true },
         role: {
             type: String,
             enum: ["admin", "seller", "customer"],
             default: "customer"
+        },
+         refreshToken: { //we are saving refresh token in db so with the help of this we can refresh acces token
+            type: String
         }
 
     },{timestamps:true}
@@ -32,25 +35,23 @@ userSchema.methods.matchPassword = async function (enteredPassword) {
     return await bcrypt.compare(enteredPassword, this.password)
 }
 
-
-module.exports = mongoose.model("User", userSchema);
-
-/**
- * we can mak access token and user tokenn here so we can directly use and export 
- * userSchema.methods.generateAccessToken=function(){
- *               return jwt.sign(
+ // we can mak access token and user tokenn here so we can directly use and export 
+  userSchema.methods.generateAccessToken=function(){
+                return jwt.sign(
          {id:this._id , role :this.role, email: this.email , name:this.name},
          process.env.ACCESS_TOKEN_SECRET, 
          { expiresIn: process.env.ACCESS_TOKEN_EXPIRY}
      )
- * }
+  }
 
- * 
- * userSchema.methods.generateRefresgToken=async function(){
- *                  return jwt.sign(
+  
+  userSchema.methods.generateRefresgToken=async function(){
+                   return jwt.sign(
          {id:this._id},
          process.env.ACCESS_REFRESH_SECRET, 
          { expiresIn: process.env.REFRESH_TOKEN_EXPIRY}
      )
- * }
- */
+  }
+
+  module.exports = mongoose.model("User", userSchema);
+ 

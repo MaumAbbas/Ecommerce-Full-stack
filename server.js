@@ -11,7 +11,7 @@ const cookieParser = require("cookie-parser");
 const connectDB = require("./config/db"); // MongoDB connection
 
 //In future this will be in another folder
-const generateToken=require("./utils/generateToken")
+// const generateToken=require("./utils/generateToken") not using this now we update to refresha nd acces token 
  
 
 // Initialize Express app
