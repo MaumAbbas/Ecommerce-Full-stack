@@ -1,5 +1,6 @@
 //we are going to use the user for crud operation 
 const User = require("../models/User");
+const jwt = require("jsonwebtoken")
 
 // we need this to generate token so we will send these token to our browser using cookies 
 // const generateToken = require("../utils/generateToken");
@@ -57,17 +58,17 @@ const generateAccessAndRefereshTokens = async (userId) => {
 const isProduction = process.env.NODE_ENV === "production"; //if we dont do this when we send cookie in production they will nt sent bc of strict
 
 const accessTokenOptions = {
-  httpOnly: true,
-  secure: isProduction,
-  sameSite: isProduction ? "none" : "strict",
-  maxAge: 15 * 60 * 1000, // 15 minutes
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? "none" : "strict",
+    maxAge: 15 * 60 * 1000, // 15 minutes
 };
 
 const refreshTokenOptions = {
-  httpOnly: true,
-  secure: isProduction,
-  sameSite: isProduction ? "none" : "strict",
-  maxAge: 10 * 24 * 60 * 60 * 1000, // 10 days
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? "none" : "strict",
+    maxAge: 10 * 24 * 60 * 60 * 1000, // 10 days
 };
 
 
@@ -161,7 +162,7 @@ exports.login = async (req, res) => {
         // Updated: refreshToken field is camelCase, so exclude the correct field
         const loggedInUser = await User.findById(user._id).select("-password -refreshToken")
 
-       
+
         //using return to chain the cookie and response
 
         return res
@@ -195,26 +196,90 @@ exports.login = async (req, res) => {
 }
 
 
-exports.logoutUser=async(req,res)=>{
+exports.logoutUser = async (req, res) => {
     try {
         //when the user comes from after the verifyJWT we have user in our request 
         await User.findByIdAndUpdate(
             req.user._id,
             {
-                $unset : {
-                    refreshToken :1
+                $unset: {
+                    refreshToken: 1
                 }
             },
             {
-                new : true  // this means mongoose will return the new update document bc mongoose  returns the OLD document
+                new: true  // this means mongoose will return the new update document bc mongoose  returns the OLD document
             }
         )
 
         return res
-        .status(200)
-        .clearCookie("accessToken", accessTokenOptions)
-        .clearCookie("refreshToken", refreshTokenOptions)
-        .json({message : "User logut successfully"})
+            .status(200)
+            .clearCookie("accessToken", accessTokenOptions)
+            .clearCookie("refreshToken", refreshTokenOptions)
+            .json({ message: "User logut successfully" })
+    } catch (err) {
+        return res.status(500).json({ message: err.message });
+    }
+
+}
+// Now here we will make the logic of refreshing acces token so when the acces token experis using the stored refresh token in our db by comparing it to the coming refresh token from user then we update the access token bc it is exp in 15 min
+
+exports.refreshAccessToken = async (req, res) => {
+    try {
+        //Here the form cookies we will get the refresh token of current user bc they already have and cookie automatically send this 
+        const incomingRefreshToken = req.cookies.refreshToken || req.body.refreshToken
+
+        if (!incomingRefreshToken) {
+            return res
+                .status(401)
+                .clearCookie("accessToken", accessTokenOptions)
+                .clearCookie("refreshToken", refreshTokenOptions)
+                .json({ message: "Unauthorized request" })
+        }
+
+        //if we have incomingRefresgh token so we will decode it and we will get that user id who send this incomming refresh token 
+        let decodedRefreshToken;
+        try {
+            decodedRefreshToken = jwt.verify(incomingRefreshToken, process.env.ACCESS_REFRESH_SECRET)
+        } catch (err) {
+            return res
+                .status(401)
+                .clearCookie("accessToken", accessTokenOptions)
+                .clearCookie("refreshToken", refreshTokenOptions)
+                .json({ message: "Invalid or expired token" });
+        }
+        // after decoding then we will find the user form the decodeToken i am usign id instead of _id bc i used id:this._id in jwt refreshtoken body
+        const user = await User.findById(decodedRefreshToken.id)
+
+        if (!user) {
+            return res
+                .status(401)
+                .clearCookie("accessToken", accessTokenOptions)
+                .clearCookie("refreshToken", refreshTokenOptions)
+                .json({ message: "Invalid refresh token" })
+        }
+
+        //now we will check if the token saved in user database and incomig token is same or not
+
+        if(incomingRefreshToken !==user.refreshToken){
+            return res
+                .status(401)
+                .clearCookie("accessToken", accessTokenOptions)
+                .clearCookie("refreshToken", refreshTokenOptions)
+                .json({message : "Token is not valid or expired"})
+        }
+
+        //if the token are match we will generate 
+        const {accessToken, refreshToken} = await generateAccessAndRefereshTokens(user._id)
+
+        return res
+            .status(200)
+            .cookie("accessToken", accessToken, accessTokenOptions)
+            .cookie("refreshToken", refreshToken, refreshTokenOptions)
+            .json({
+                message : "Token refreshed successfully"
+            })
+
+
     } catch (err) {
         return res.status(500).json({ message: err.message });
     }
