@@ -1,6 +1,6 @@
 //we are going to use the user for crud operation 
 const User = require("../models/User");
-const mongoose = require("mongoose")
+
 // we need this to generate token so we will send these token to our browser using cookies 
 // const generateToken = require("../utils/generateToken");
 
@@ -54,6 +54,22 @@ const generateAccessAndRefereshTokens = async (userId) => {
         throw new Error("Error generating tokens: " + err.message); // because we are using respone in this function
     }
 }
+const isProduction = process.env.NODE_ENV === "production"; //if we dont do this when we send cookie in production they will nt sent bc of strict
+
+const accessTokenOptions = {
+  httpOnly: true,
+  secure: isProduction,
+  sameSite: isProduction ? "none" : "strict",
+  maxAge: 15 * 60 * 1000, // 15 minutes
+};
+
+const refreshTokenOptions = {
+  httpOnly: true,
+  secure: isProduction,
+  sameSite: isProduction ? "none" : "strict",
+  maxAge: 10 * 24 * 60 * 60 * 1000, // 10 days
+};
+
 
 exports.register = async (req, res) => {
     try {
@@ -145,21 +161,7 @@ exports.login = async (req, res) => {
         // Updated: refreshToken field is camelCase, so exclude the correct field
         const loggedInUser = await User.findById(user._id).select("-password -refreshToken")
 
-        const accessTokenOptions = {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production", // true in production, false in dev,
-            // Updated: sameSite helps reduce CSRF risk when using cookies
-            sameSite: "strict",
-            maxAge: 15 * 60 * 1000 // 15 minutes
-        }
-
-        const refreshTokenOptions = {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production", // true in production, false in dev,
-            // Updated: sameSite helps reduce CSRF risk when using cookies
-            sameSite: "strict",
-            maxAge: 10 * 24 * 60 * 60 * 1000 // 10 days
-        }
+       
         //using return to chain the cookie and response
 
         return res
@@ -191,4 +193,32 @@ exports.login = async (req, res) => {
     }
 
 }
+
+
+exports.logoutUser=async(req,res)=>{
+    try {
+        //when the user comes from after the verifyJWT we have user in our request 
+        await User.findByIdAndUpdate(
+            req.user._id,
+            {
+                $unset : {
+                    refreshToken :1
+                }
+            },
+            {
+                new : true  // this means mongoose will return the new update document bc mongoose  returns the OLD document
+            }
+        )
+
+        return res
+        .status(200)
+        .clearCookie("accessToken", accessTokenOptions)
+        .clearCookie("refreshToken", refreshTokenOptions)
+        .json({message : "User logut successfully"})
+    } catch (err) {
+        return res.status(500).json({ message: err.message });
+    }
+
+}
+
 
