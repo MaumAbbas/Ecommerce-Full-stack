@@ -1,5 +1,6 @@
 const mongoose = require("mongoose")
 const bcrypt = require("bcryptjs");
+const jwt=require("jsonwebtoken")
 
 const userSchema = new mongoose.Schema(
     {
@@ -45,7 +46,7 @@ userSchema.methods.matchPassword = async function (enteredPassword) {
   }
 
   
-  userSchema.methods.generateRefresgToken=async function(){
+  userSchema.methods.generateRefreshToken=async function(){
                    return jwt.sign(
          {id:this._id},
          process.env.ACCESS_REFRESH_SECRET, 
