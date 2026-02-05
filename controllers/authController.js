@@ -31,6 +31,10 @@ const generateAccessAndRefereshTokens = async (userId) => {
     try {
         //1.First we will find the user using his id so we generate the tokens for that user and for each differnt user we will make differnt token that why we are using the user so we need to find it first
         const user = await User.findById(userId);
+        // Updated: avoid calling token methods on null when user does not exist
+        if (!user) {
+            throw new Error("User not found");
+        }
         //2.This will generate accestoken bc we made this function using mongoose so we can direlcty use these function anywhere using the user we found
         const accessToken = user.generateAccessToken();
 
@@ -63,7 +67,8 @@ exports.register = async (req, res) => {
 
         //we will check if the user alread exists 
         let existingUser = await User.findOne({
-            $or: [{ name, email }] //checks both 
+            // Updated: $or must be separate objects so it matches either name OR email
+            $or: [{ name }, { email }]
         });
         //just for now we are sending user details we want to check the postman
         if (existingUser) {
@@ -137,17 +142,22 @@ exports.login = async (req, res) => {
 
         //extra step we can send logged in user info using the getsafeuser function
 
-        const loggedInUser = await User.findById(user._id).select("-password -refreshtoken")
+        // Updated: refreshToken field is camelCase, so exclude the correct field
+        const loggedInUser = await User.findById(user._id).select("-password -refreshToken")
 
         const accessTokenOptions = {
             httpOnly: true,
             secure: process.env.NODE_ENV === "production", // true in production, false in dev,
+            // Updated: sameSite helps reduce CSRF risk when using cookies
+            sameSite: "strict",
             maxAge: 15 * 60 * 1000 // 15 minutes
         }
 
         const refreshTokenOptions = {
             httpOnly: true,
             secure: process.env.NODE_ENV === "production", // true in production, false in dev,
+            // Updated: sameSite helps reduce CSRF risk when using cookies
+            sameSite: "strict",
             maxAge: 10 * 24 * 60 * 60 * 1000 // 10 days
         }
         //using return to chain the cookie and response
@@ -158,9 +168,8 @@ exports.login = async (req, res) => {
             .cookie("refreshToken", refreshToken, refreshTokenOptions)
             .json({
                 message: "Login successful",      // A friendly message
-                user: loggedInUser,               // User info (without password/refreshToken)
-                accessToken,                      // Optional: send token in body for mobile apps
-                refreshToken                      // Optional: send token in body if needed bc we send req form the postman so we need beare authorization 
+                user: loggedInUser                // User info (without password/refreshToken)
+                // Updated: do not return tokens in JSON since we already set httpOnly cookies
 
             })
 
