@@ -287,3 +287,43 @@ exports.refreshAccessToken = async (req, res) => {
 }
 
 
+//Here we will make the controller for the changing the cureent passwrod
+
+const changeCurrentPassword = async (req, res) => {
+    try {
+        const { oldPassword, newPassword } = req.body;
+
+        if (!oldPassword?.trim() || !newPassword?.trim()) {
+            return res.status(400).json({ message: "Old and new password are required" });
+        }
+
+        //because if user is changing the password means he is already loged in so we can verify using the verify jwt by passing in the route so after verify jwt we will get the user in req.user
+
+        const user = await User.findById(req.user?._id)
+
+        if (!user) {
+            return res.status(401).json({ message: "Unauthorized request" });
+        }
+
+        //Now we will check the enterd password by user is correnct or not means the old password 
+
+        const isPasswordCorrect = await user.matchPassword(oldPassword)
+
+        if (!isPasswordCorrect) {
+            return res.status(400).json({ message: "Old password is incorrect" })
+        }
+
+        user.password = newPassword
+
+        await user.save({ validateBeforeSave: false })
+
+        return res.status(200).json({ message: "Password updated successfully" })
+
+
+    } catch (err) {
+        res.status(500).json({ message: err.message })
+    }
+}
+
+exports.changeCurrentPassword = changeCurrentPassword;
+
