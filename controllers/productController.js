@@ -29,49 +29,49 @@ exports.createProduct = async (req, res) => {
   try {
     // Change: wrap stream creation in try/catch in case Cloudinary throws synchronously.
     uploadToCloudinary = cloudinary.uploader.upload_stream(
-    {
-      folder: "products",
-      transformation: [
-        { quality: "auto", fetch_format: "auto" },
-        {
-          width: 1200,
-          height: 1200,
-          crop: "fill",
-          gravity: "auto",
-        },
-      ],
-    },
-      async (err, result) => {
-      if (err) {
-        console.error("Cloudinary upload error:", err);
-        return res.status(500).json({
-          message: "Image upload failed",
-          error: err.message,
-        });
-      }
-
-      try {
-        const product = await Product.create({  //this is async process so after this upload.end(req.file.buffer); we will get the url and other things
-          title,
-          description,
-          price: normalizedPrice,
-          stock: normalizedStock,
-          category,   //we will fill this later
-          seller: req.user._id,
-          image: {
-            url: result.secure_url,
-            public_id: result.public_id,
+      {
+        folder: "products",
+        transformation: [
+          { quality: "auto", fetch_format: "auto" },
+          {
+            width: 1200,
+            height: 1200,
+            crop: "fill",
+            gravity: "auto",
           },
-        });
+        ],
+      },
+      async (err, result) => {
+        if (err) {
+          console.error("Cloudinary upload error:", err);
+          return res.status(500).json({
+            message: "Image upload failed",
+            error: err.message,
+          });
+        }
 
-        return res.status(201).json(product);
-      } catch (dbError) {
-        console.error("Product creation error:", dbError);
-        return res.status(500).json({
-          message: "Product creation failed",
-          error: dbError.message,
-        });
-      }
+        try {
+          const product = await Product.create({  //this is async process so after this upload.end(req.file.buffer); we will get the url and other things
+            title,
+            description,
+            price: normalizedPrice,
+            stock: normalizedStock,
+            category,   //we will fill this later
+            seller: req.user._id,
+            image: {
+              url: result.secure_url,
+              public_id: result.public_id,
+            },
+          });
+
+          return res.status(201).json(product);
+        } catch (dbError) {
+          console.error("Product creation error:", dbError);
+          return res.status(500).json({
+            message: "Product creation failed",
+            error: dbError.message,
+          });
+        }
       }
     );
   } catch (cloudinaryError) {
@@ -100,4 +100,52 @@ exports.getProducts = async (req, res) => {
   }
 };
 
+//delte product route
+exports.deleteProduct = async (req, res) => {  // we will id in params from front
+  try {
+
+    //1. First we will find the product we will get the product id from front end we we hit delete product button we will also get its product id in parmad we will send id explecity by makiing function 
+
+
+    const product = await Product.findById(req.params.id)
+
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    //we will write the logic if the role is seller then he can delet the prodcuts that he made
+    if (
+      req.user.role === "seller"
+      && req.user._id.toString() !== product.seller.toString()
+    ) {
+      return res.status(403).json({
+        message: "You can delete only your own products"
+      });
+    }
+
+    //here both seller and admin can delete the product 
+
+    // Best-effort Cloudinary cleanup: log and continue if image deletion fails
+    if (product.image && product.image.public_id) {
+      try {
+        await cloudinary.uploader.destroy(product.image.public_id);
+      } catch (cloudinaryError) {
+        console.error("Cloudinary delete error:", cloudinaryError);
+      }
+    }
+
+    await Product.deleteOne({ _id: product._id });
+
+    return res.status(200).json({
+      message: "Product deleted successfully"
+    });
+
+
+  } catch (error) {
+    return res.status(500).json({
+      message: "Delete failed",
+      error: error.message
+    });
+  }
+}
 
