@@ -56,7 +56,7 @@ exports.createProduct = async (req, res) => {
           description,
           price: normalizedPrice,
           stock: normalizedStock,
-          category,
+          category,   //we will fill this later
           seller: req.user._id,
           image: {
             url: result.secure_url,
@@ -84,6 +84,7 @@ exports.createProduct = async (req, res) => {
 
   uploadToCloudinary.end(req.file.buffer); // calling function here and passing the argument  adn we can not use awiat bc uploader.stream doesnot return promise so if we want to use await we have to wrap uploadToCloudinaty to promise just i did in productController2.txt
 };
+
 exports.getProducts = async (req, res) => {
   try {
     const products = await Product.find()
@@ -98,3 +99,5 @@ exports.getProducts = async (req, res) => {
     });
   }
 };
+
+
