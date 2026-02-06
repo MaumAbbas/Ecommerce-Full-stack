@@ -23,9 +23,9 @@ const verifyJWT = async (req, res, next) => {
             return res.status(401).json({ message: "Invalid or expired token" });
         }
 
-        //after decoding the token we can get the  userid bc we save the user detail inside accesstoken body while we created it in the User.model.js
+        //after decoding the token we can get the  userid bc we save _id inside access token payload in the User.model.js
 
-        const user= await User.findById(decodedToken.id).select("-password -refreshToken"); //here we use id bc in jwt sing in we used id : this._id so actually we are using id 
+        const user= await User.findById(decodedToken._id).select("-password -refreshToken"); //here we use _id bc in jwt sign in we used _id : this._id 
 
         if(!user){
              return res.status(401).json({ message: "User not found" });

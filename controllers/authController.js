@@ -251,8 +251,8 @@ exports.refreshAccessToken = async (req, res) => {
                 .clearCookie("refreshToken", refreshTokenOptions)
                 .json({ message: "Invalid or expired token" });
         }
-        // after decoding then we will find the user form the decodeToken i am usign id instead of _id bc i used id:this._id in jwt refreshtoken body
-        const user = await User.findById(decodedRefreshToken.id)
+        // after decoding then we will find the user form the decodeToken using _id bc we used _id:this._id in jwt refresh token body
+        const user = await User.findById(decodedRefreshToken._id)
 
         if (!user) {
             return res
@@ -333,3 +333,55 @@ exports.changeCurrentPassword = async (req, res) => {
     }
 }
 
+//controller to get current user 
+exports.getCurrentUser = async (req, res) => {
+    try {
+        const user = req.user;
+
+        if (!user) {
+            return res.status(401).json({ message: "Unauthorized request" });
+        }
+
+        return res.status(200).json({
+            user,
+            message: "Current user fetched successfully"
+        });
+    } catch (err) {
+        return res.status(500).json({ message: err.message });
+    }
+}
+
+//controller to update account details (name/email)
+exports.updateAccountDetails = async (req, res) => {
+    try {
+        const { name, email } = req.body;
+
+        if (!name?.trim() && !email?.trim()) {
+            return res.status(400).json({ message: "At least one field (name or email) is required" });
+        }
+
+        const updates = {};
+        if (name?.trim()) updates.name = name.trim();
+        if (email?.trim()) updates.email = email.trim();
+
+        const updatedUser = await User.findByIdAndUpdate(
+            req.user?._id,
+            { $set: updates },
+            { new: true, runValidators: true }
+        ).select("-password -refreshToken");
+
+        if (!updatedUser) {
+            return res.status(401).json({ message: "Unauthorized request" });
+        }
+
+        return res.status(200).json({
+            message: "Account details updated successfully",
+            user: updatedUser
+        });
+    } catch (err) {
+        if (err.code === 11000) {
+            return res.status(409).json({ message: "Email or name already in use" });
+        }
+        return res.status(500).json({ message: err.message });
+    }
+}
