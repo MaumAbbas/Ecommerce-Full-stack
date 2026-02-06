@@ -101,7 +101,8 @@ exports.register = async (req, res) => {
         });
 
         //This will send a message if user is created succesfully
-        res.status(201).json({ message: "User created successfully", user: getSafeUser(user) });// inseted of this we can do which is more good is this 
+        // Updated: return to avoid any accidental fall-through after sending response
+        return res.status(201).json({ message: "User created successfully", user: getSafeUser(user) });// inseted of this we can do which is more good is this 
         /**
          * const createdUser = await User.findById(user._id).select(
          *          "-password -refreshtoken"
@@ -115,7 +116,8 @@ exports.register = async (req, res) => {
 
 
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        // Updated: return to keep response flow consistent
+        return res.status(500).json({ message: error.message });
 
     }
 }
@@ -189,7 +191,8 @@ exports.login = async (req, res) => {
 
 
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        // Updated: return to keep response flow consistent
+        return res.status(500).json({ message: err.message });
 
     }
 
@@ -215,7 +218,8 @@ exports.logoutUser = async (req, res) => {
             .status(200)
             .clearCookie("accessToken", accessTokenOptions)
             .clearCookie("refreshToken", refreshTokenOptions)
-            .json({ message: "User logut successfully" })
+            // Updated: message typo fix for consistency
+            .json({ message: "User logout successfully" })
     } catch (err) {
         return res.status(500).json({ message: err.message });
     }
@@ -260,23 +264,25 @@ exports.refreshAccessToken = async (req, res) => {
 
         //now we will check if the token saved in user database and incomig token is same or not
 
-        if(incomingRefreshToken !==user.refreshToken){
+        if (incomingRefreshToken !== user.refreshToken) {
             return res
                 .status(401)
                 .clearCookie("accessToken", accessTokenOptions)
                 .clearCookie("refreshToken", refreshTokenOptions)
-                .json({message : "Token is not valid or expired"})
+                // Updated: normalize spacing in response object
+                .json({ message: "Token is not valid or expired" })
         }
 
         //if the token are match we will generate 
-        const {accessToken, refreshToken} = await generateAccessAndRefereshTokens(user._id)
+        const { accessToken, refreshToken } = await generateAccessAndRefereshTokens(user._id)
 
         return res
             .status(200)
             .cookie("accessToken", accessToken, accessTokenOptions)
             .cookie("refreshToken", refreshToken, refreshTokenOptions)
             .json({
-                message : "Token refreshed successfully"
+                // Updated: normalize spacing in response object
+                message: "Token refreshed successfully"
             })
 
 
@@ -289,7 +295,7 @@ exports.refreshAccessToken = async (req, res) => {
 
 //Here we will make the controller for the changing the cureent passwrod
 
-const changeCurrentPassword = async (req, res) => {
+exports.changeCurrentPassword = async (req, res) => {
     try {
         const { oldPassword, newPassword } = req.body;
 
@@ -310,7 +316,8 @@ const changeCurrentPassword = async (req, res) => {
         const isPasswordCorrect = await user.matchPassword(oldPassword)
 
         if (!isPasswordCorrect) {
-            return res.status(400).json({ message: "Old password is incorrect" })
+            // Updated: use 401 for auth-related mismatch
+            return res.status(401).json({ message: "Old password is incorrect" })
         }
 
         user.password = newPassword
@@ -321,9 +328,10 @@ const changeCurrentPassword = async (req, res) => {
 
 
     } catch (err) {
-        res.status(500).json({ message: err.message })
+        // Updated: return to keep response flow consistent
+        return res.status(500).json({ message: err.message })
     }
 }
 
-exports.changeCurrentPassword = changeCurrentPassword;
+
 
