@@ -267,7 +267,7 @@ exports.updateProduct = async (req, res) => {
           },
           (err, result) => {
             if (err) return reject(err);
-            resolve(result);
+            resolve(result);//this will be stored in uploadTocloudinary
           }
         );
         stream.end(req.file.buffer);
@@ -285,5 +285,41 @@ exports.updateProduct = async (req, res) => {
   } catch (error) {
     console.error("Update product error:", error);
     return res.status(500).json({ message: "Failed to update product", error: error.message });
+  }
+};
+
+exports.searchProducts = async (req, res) => {
+  try {
+    const { q } = req.query;
+
+    // If no search query is provided
+    if (!q || q.trim() === "") {
+      return res.status(400).json({
+        message: "Search query is required",
+      });
+    }
+
+    // Escape regex characters to avoid unintended patterns
+    const escapedQuery = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+    // Search products by title or description (case-insensitive)
+    const products = await Product.find(
+      {
+        $or: [
+          { title: { $regex: escapedQuery, $options: "i" } },
+          { description: { $regex: escapedQuery, $options: "i" } },
+        ],
+      },
+      // send ONLY required fields to frontend
+      "title  description price image stock"
+    );
+
+    res.status(200).json(products);
+  } catch (error) {
+    console.error("Search products error:", error);
+    res.status(500).json({
+      message: "Failed to search products",
+      error: error.message,
+    });
   }
 };

@@ -10,7 +10,8 @@ const {
   deleteProduct,
   getMyProducts,
   getProductById,
-  updateProduct
+  updateProduct,
+  searchProducts 
 } = require("../controllers/productController");
 
 // Create Product
@@ -61,6 +62,7 @@ router.delete(
   deleteProduct
 );
 
-
+// Search products
+router.get("/search", searchProducts);
 
 module.exports = router;
