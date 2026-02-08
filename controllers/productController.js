@@ -1,6 +1,5 @@
 const Product = require("../models/Product");
 const cloudinary = require("../config/cloudinary");
-const upload = require("../middleware/upload.js");
 
 exports.createProduct = async (req, res) => {
 
@@ -87,8 +86,10 @@ exports.createProduct = async (req, res) => {
 
 exports.getProducts = async (req, res) => {
   try {
-    const products = await Product.find()
-      .populate("category seller", "name email");
+    const products = await Product.find().populate([
+      { path: "category", select: "name parentCategory" },
+      { path: "seller", select: "name email" }
+    ]);
 
     res.json(products);
   } catch (error) {
@@ -149,3 +150,140 @@ exports.deleteProduct = async (req, res) => {  // we will id in params from fron
   }
 }
 
+
+// Get Products for Current User (Seller sees own, Admin sees all)
+// --------------------------
+exports.getMyProducts = async (req, res) => {
+  try {
+    let products;
+
+
+    //1.We will check if the req user is seller then we will show the product only he needed
+    if (req.user.role === "seller") {
+      //we will find only those product using the seller id and we used populate in category and seller because they contain refrence and have their own name and details but ac to usage we will decide to use this in frontend or not
+      products = await Product.find({ seller: req.user._id }).populate([
+        { path: "category", select: "name parentCategory" },
+        { path: "seller", select: "name email" }
+      ]);
+    } else {  //if he is not seller that means he is admin he can see all products 
+      products = await Product.find().populate([
+        { path: "category", select: "name parentCategory" },
+        { path: "seller", select: "name email" }
+      ]);
+    }
+
+    res.status(200).json(products);
+  } catch (error) {
+    console.error("Get my products error:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// --------------------------
+// Get Single Product for Editing when we click on edit button then we will come to this route and the user will shown the current details of product so we can edit 
+// --------------------------
+exports.getProductById = async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id).populate([
+      { path: "category", select: "name parentCategory" },
+      { path: "seller", select: "name email" }
+    ]);
+
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    if (req.user.role === "seller" && product.seller._id.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    res.status(200).json(product);
+  } catch (error) {
+    console.error("Fetch product error:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+
+// Update Product
+
+exports.updateProduct = async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id);
+
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    // Ownership check: Seller can update only own product, Admin can update any
+    if (req.user.role === "seller" && product.seller.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "You can only update your own products" });
+    }
+
+    const { title, description, price, stock, category } = req.body;
+
+    if (title !== undefined) product.title = title;
+    if (description !== undefined) product.description = description;
+    if (stock !== undefined) {
+      const normalizedStock = Number(stock);
+      if (Number.isNaN(normalizedStock)) {
+        return res.status(400).json({ message: "Stock must be a number" });
+      }
+      product.stock = normalizedStock;
+    }
+    if (category !== undefined) product.category = category;
+
+    // Price: allow both admin and seller to update
+    if (price !== undefined) {
+      const normalizedPrice = Number(price);
+      if (Number.isNaN(normalizedPrice)) {
+        return res.status(400).json({ message: "Price must be a number" });
+      }
+      product.price = normalizedPrice;
+    }
+    // If you want to restrict admin from updating price, use this instead:
+    // if (req.user.role === "seller" && price !== undefined) {
+    //   product.price = Number(price);
+    // }
+
+    // Update image if provided
+    if (req.file) {
+      if (product.image && product.image.public_id) {
+        try {
+          await cloudinary.uploader.destroy(product.image.public_id);
+        } catch (err) {
+          console.error("Old image deletion failed:", err);
+        }
+      }
+
+      const uploadToCloudinary = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          {
+            folder: "products",
+            transformation: [
+              { quality: "auto", fetch_format: "auto" },
+              { width: 1200, height: 1200, crop: "fill", gravity: "auto" },
+            ],
+          },
+          (err, result) => {
+            if (err) return reject(err);
+            resolve(result);
+          }
+        );
+        stream.end(req.file.buffer);
+      });
+
+      product.image = {
+        url: uploadToCloudinary.secure_url,
+        public_id: uploadToCloudinary.public_id,
+      };
+    }
+
+    await product.save();
+
+    return res.status(200).json({ message: "Product updated", product });
+  } catch (error) {
+    console.error("Update product error:", error);
+    return res.status(500).json({ message: "Failed to update product", error: error.message });
+  }
+};
