@@ -61,3 +61,37 @@ exports.addToCart = async (req, res) => {
         res.status(500).json({ message: "Internal server error" });
     }
 };
+
+exports.myCart = async (req, res) => {
+    try {
+
+        //we will get this from the  req.user which jwt gives us 
+        const userId = req.user._id
+        if (!userId) {
+            return res.status(401).json({ message: "User not found" });
+        }
+
+        //now we will find the car using the user id 
+
+        const myCart = await Cart.findOne({ user: userId }).populate("items.product") //Find the cart where user = this userId we arepopulating the product bc in actuat cart stores the product id refrence that why we are populating 
+
+        //means our cart is empty
+        if (!myCart) {
+            return res.status(200).json({
+                message: "Cart is empty",
+                cart: { items: [] }
+            });
+        }
+
+        //if cart exist we will send cart to the fontend 
+        res.status(200).json({
+            message: "Cart fetched successfully",
+            cart: myCart
+        });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Server error" });
+
+    }
+}
