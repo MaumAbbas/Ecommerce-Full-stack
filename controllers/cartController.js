@@ -219,3 +219,38 @@ exports.removeCartItem = async (req, res) => {
     });
   }
 };
+
+exports.emptyCart = async (req, res) => {
+  try {
+    const userId = req.user?._id;
+    if (!userId) {
+      return res.status(401).json({ message: "User not found" });
+    }
+
+    /*
+    we also can just do await Cart.deleteOne({ user: userId });
+
+    */
+
+    const updatedCart = await Cart.findOneAndUpdate(
+      { user: userId },
+      { $set: { items: [] } },
+      { new: true }
+    );
+
+    if (!updatedCart) {
+      return res.status(200).json({
+        message: "Cart is already empty",
+        cart: { items: [] }
+      });
+    }
+
+    return res.status(200).json({
+      message: "Cart emptied successfully",
+      cart: updatedCart
+    });
+  } catch (error) {
+    console.error("Empty cart error:", error);
+    return res.status(500).json({ message: "Cart empty operation failed" });
+  }
+};
