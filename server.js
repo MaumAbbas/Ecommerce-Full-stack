@@ -42,11 +42,13 @@ connectDB()
 const authRoutes = require("./routes/authRoutes");
 const productRoutes =require("./routes/productRoutes");
 const cartRoutes = require("./routes/cartRoutes");
+const orderRoutes = require("./routes/orderRoutes");
 
 // Route declarations
 app.use("/api/auth", authRoutes);
 app.use("/api/product",productRoutes)
 app.use("/api/cart",cartRoutes)
+app.use("/api/order", orderRoutes)
 
 
 // Start the server
