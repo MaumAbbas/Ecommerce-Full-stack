@@ -32,8 +32,20 @@ const orderSchema = new mongoose.Schema({
         type: String,
         enum: ["pending", "processing", "shipped", "delivered", "cancelled"],
         default: "pending"
+    },
+    paymentStatus: {
+        type: string,
+        enum: ["pending", "paid", "refunded", "failed"],
+        default: "pending"
+    },
+    paymentReference: {
+        type: String,
+        default: null
+    },
+    paidAt: {
+        type: Date
     }
 
 }, { timestamps: true })
 
-module.exports = mongoose.model("Order",orderSchema)
+module.exports = mongoose.model("Order", orderSchema)
