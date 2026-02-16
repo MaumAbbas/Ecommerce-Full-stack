@@ -115,3 +115,87 @@ exports.placeOrder = async (req, res) => {
         }
     }
 };
+
+
+exports.fakePayOrder = async (req, res) => {
+    try {
+        const userId = req.user?._id;
+        if (!userId) {
+            return res.status(401).json({ message: "Unauthorized" });
+        }
+        //we will send the orderId from front end bc we have the order in response from 
+        const { orderId } = req.params;
+
+        const order = await Order.findOne({ _id: orderId, customer: userId });
+
+        if (!order) return res.status(404).json({ message: "Order not found" });
+        if (order.status === "cancelled") return res.status(400).json({ message: "Order cancelled" });
+        if (order.paymentStatus === "paid") return res.status(400).json({ message: "Already paid" });
+
+        order.paymentStatus = "paid";
+        order.status = "processing";
+        order.paymentReference = "DEMO-" + Date.now();
+        order.paidAt = new Date();
+        await order.save();
+
+        res.json({ message: "Payment successful", order });
+
+
+
+    } catch (error) {
+        res.status(500).json({ message: "Payment failed", error: error.message });
+    }
+}
+
+//Now we will make the route for cancle order
+
+exports.cancelOrder = async (req, res) => {
+    try {
+        const userId = req.user?._id;
+        if (!userId) {
+            return res.status(401).json({ message: "Unauthorized" });
+        }
+        const { orderId } = req.params;
+
+        const session = await mongoose.startSession();
+        session.startTransaction();
+        const order = await Order.findOne({ _id: orderId, customer: userId }).session(session);
+
+        if (!order) {
+            await session.abortTransaction(); session.endSession();
+            return res.status(404).json({ message: "Order not found" });
+        }
+
+        if (order.status === "cancelled" || order.status === "shipped" || order.status === "delivered") {
+            await session.abortTransaction(); session.endSession();
+            return res.status(400).json({ message: "Cannot cancel order" });
+        }
+
+        //first we will  mange the stock we will again include the quantity of each item in stock again in order.itmes we have multiple items so we will loop through each item and inclrease that prodcut stock using the quantity of store inside the items and we will add that quantity at stock
+
+        for (const item of order.items) {
+            await Product.findByIdAndUpdate(item.product, {
+                $inc: { stock: item.quantity }
+            }, { session });
+        }
+
+        order.status = "cancelled";
+        if (order.paymentStatus === "paid") order.paymentStatus = "refunded";
+
+        await order.save({ session });
+
+        await session.commitTransaction();
+        session.endSession();
+
+        res.json({ message: "Order cancelled successfully", order });
+
+
+    } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
+        res.status(500).json({ message: "Something went wrong", error: error.message });
+
+    }
+}
+
+
