@@ -43,12 +43,14 @@ exports.placeOrder = async (req, res) => {
             //In Cart there will be multiple itmes so we will run loop through itmes and get each item details
 
             for (const item of cart.items) {
-                if (!item.product) {
+                const product = item.product;
+                if (!product) {
                     throw new Error("Product not found");
                 }
                 if (!Number.isInteger(item.quantity) || item.quantity <= 0) {
                     throw new Error("Invalid item quantity");
                 }
+                if (product.stock < item.quantity) throw new Error("Out of stock");
 
                 //after we confrim their is prodcut inside the item we will now find the total 
 
@@ -57,9 +59,10 @@ exports.placeOrder = async (req, res) => {
                 //now we will push each item inside the orderitems so we can use that array in the order creation when we store the item in the order model
 
                 orderItems.push({
-                    product: item.product._id,
+                    product: product._id,
+                    seller: product.seller,
                     quantity: item.quantity,
-                    price: item.product.price
+                    price: product.price
                 });
             }
 

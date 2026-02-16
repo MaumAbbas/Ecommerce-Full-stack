@@ -14,6 +14,13 @@ const orderSchema = new mongoose.Schema({
                 ref: "Product",
                 required: true
             },
+
+            //we will use the seller id so we can track which item belogs to which seller and he can mark them shipped or other
+            seller: {
+                type: mongoose.Schema.Types.ObjectId,
+                refrence: "User",
+                required: true
+            },
             quantity: {
                 type: Number,
                 required: true
@@ -21,6 +28,13 @@ const orderSchema = new mongoose.Schema({
             price: {
                 type: Number,
                 required: true
+            },
+
+            //this is for each item status according to its seller 
+            status: {
+                type: String,
+                enum: ["processing", "shipped", "delivered"],
+                default: "processing"
             }
         }
     ],
@@ -28,6 +42,7 @@ const orderSchema = new mongoose.Schema({
         type: Number,
         required: true
     },
+    //this is the status of order overall order status
     status: {
         type: String,
         enum: ["pending", "processing", "shipped", "delivered", "cancelled"],
