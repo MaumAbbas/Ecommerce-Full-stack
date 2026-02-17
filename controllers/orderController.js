@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const Order = require("../models/Order.js");
 const Cart = require("../models/Cart.js");
 const Product = require("../models/Product");
+const { Types } = mongoose;
 
 //we are going to use the mongoose transcation so either order create and stock reduce either not happen
 exports.placeOrder = async (req, res) => {
@@ -125,6 +126,10 @@ exports.fakePayOrder = async (req, res) => {
         }
         //we will send the orderId from front end bc we have the order in response from 
         const { orderId } = req.params;
+        // Return 400 for malformed ids so client gets a clear validation error (not 500).
+        if (!Types.ObjectId.isValid(orderId)) {
+            return res.status(400).json({ message: "Invalid orderId" });
+        }
 
         const order = await Order.findOne({ _id: orderId, customer: userId });
 
@@ -157,6 +162,10 @@ exports.cancelOrder = async (req, res) => {
             return res.status(401).json({ message: "Unauthorized" });
         }
         const { orderId } = req.params;
+        // Same validation guard as pay route to keep API behavior consistent.
+        if (!Types.ObjectId.isValid(orderId)) {
+            return res.status(400).json({ message: "Invalid orderId" });
+        }
 
         session = await mongoose.startSession();
         session.startTransaction();
@@ -269,10 +278,15 @@ exports.markItemShipped = async (req, res) => {
     if (!sellerId) {
       return res.status(401).json({ message: "Unauthorized" });
     }
+    // Validate params early so malformed ObjectIds don't bubble up as server errors.
+    if (!Types.ObjectId.isValid(orderId) || !Types.ObjectId.isValid(itemId)) {
+      return res.status(400).json({ message: "Invalid orderId or itemId" });
+    }
 
     const order = await Order.findOne({
       _id: orderId,
       status: { $nin: ["cancelled", "delivered"] },
+      // $elemMatch ensures itemId and sellerId are checked on the same array element.
       items: { $elemMatch: { _id: itemId, seller: sellerId } }
     });
 
@@ -289,11 +303,13 @@ exports.markItemShipped = async (req, res) => {
     }
 
     if (targetItem.status !== "processing") {
+      // Enforce explicit status transition: processing -> shipped only.
       return res.status(400).json({ message: "Only processing items can be marked shipped" });
     }
 
     targetItem.status = "shipped";
 
+    // If every seller-item is shipped (or later delivered), order can move to shipped.
     const allShipped = order.items.every(
       item => item.status === "shipped" || item.status === "delivered"
     );
