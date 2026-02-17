@@ -259,3 +259,100 @@ exports.getSellerOrders = async (req, res) => {
     });
   }
 };
+// controllers/orderController.js
+
+exports.markItemShipped = async (req, res) => {
+  try {
+    const sellerId = req.user?._id;
+    const { orderId, itemId } = req.params;
+
+    if (!sellerId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const order = await Order.findOne({
+      _id: orderId,
+      status: { $nin: ["cancelled", "delivered"] },
+      items: { $elemMatch: { _id: itemId, seller: sellerId } }
+    });
+
+    if (!order) {
+      return res.status(404).json({ message: "Order or item not found" });
+    }
+
+    const targetItem = order.items.find(
+      item => item._id.toString() === itemId && item.seller.toString() === sellerId.toString()
+    );
+
+    if (!targetItem) {
+      return res.status(404).json({ message: "Order item not found for this seller" });
+    }
+
+    if (targetItem.status !== "processing") {
+      return res.status(400).json({ message: "Only processing items can be marked shipped" });
+    }
+
+    targetItem.status = "shipped";
+
+    const allShipped = order.items.every(
+      item => item.status === "shipped" || item.status === "delivered"
+    );
+
+    if (allShipped) {
+      order.status = "shipped";
+    }
+
+    await order.save();
+
+    res.json({ message: "Item marked as shipped successfully" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+exports.getCustomerOrders = async (req, res) => {
+  try {
+    const userId = req.user?._id;
+
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const orders = await Order.find({ customer: userId })
+      .populate("items.product", "title price")
+      .lean();
+
+    const trackedOrders = orders.map(order => {
+      const safeItems = (order.items || []).filter(i => i?.product);
+      const itemStatuses = safeItems.map(i => i.status);
+
+      let overallStatus = order.status;
+      if (itemStatuses.length > 0 && itemStatuses.every(s => s === "delivered")) {
+        overallStatus = "delivered";
+      } else if (itemStatuses.length > 0 && itemStatuses.every(s => s === "shipped")) {
+        overallStatus = "shipped";
+      } else if (itemStatuses.some(s => s === "shipped" || s === "delivered")) {
+        overallStatus = "processing";
+      }
+
+      return {
+        orderId: order._id,
+        paidAt: order.paidAt,
+        totalAmount: order.totalAmount,
+        paymentStatus: order.paymentStatus,
+        orderStatus: overallStatus,
+        items: safeItems.map(i => ({
+          productName: i.product.title,
+          quantity: i.quantity,
+          price: i.price,
+          status: i.status
+        }))
+      };
+    });
+
+    res.status(200).json({ orders: trackedOrders });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to fetch orders", error: error.message });
+  }
+};
+
+
