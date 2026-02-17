@@ -150,6 +150,7 @@ exports.fakePayOrder = async (req, res) => {
 //Now we will make the route for cancle order
 
 exports.cancelOrder = async (req, res) => {
+    let session;
     try {
         const userId = req.user?._id;
         if (!userId) {
@@ -157,17 +158,17 @@ exports.cancelOrder = async (req, res) => {
         }
         const { orderId } = req.params;
 
-        const session = await mongoose.startSession();
+        session = await mongoose.startSession();
         session.startTransaction();
         const order = await Order.findOne({ _id: orderId, customer: userId }).session(session);
 
         if (!order) {
-            await session.abortTransaction(); session.endSession();
+            await session.abortTransaction();
             return res.status(404).json({ message: "Order not found" });
         }
 
         if (order.status === "cancelled" || order.status === "shipped" || order.status === "delivered") {
-            await session.abortTransaction(); session.endSession();
+            await session.abortTransaction();
             return res.status(400).json({ message: "Cannot cancel order" });
         }
 
@@ -185,17 +186,76 @@ exports.cancelOrder = async (req, res) => {
         await order.save({ session });
 
         await session.commitTransaction();
-        session.endSession();
 
         res.json({ message: "Order cancelled successfully", order });
 
 
     } catch (error) {
-        await session.abortTransaction();
-        session.endSession();
+        if (session) {
+            await session.abortTransaction();
+        }
         res.status(500).json({ message: "Something went wrong", error: error.message });
-
+    } finally {
+        if (session) {
+            await session.endSession();
+        }
     }
 }
 
+// GET seller orders using map + filter
+exports.getSellerOrders = async (req, res) => {
+  try {
+    const sellerId = req.user?._id;
+    const role = req.user?.role;
 
+    if (!sellerId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    if (role !== "seller") {
+      return res.status(403).json({ message: "Only sellers can access this route" });
+    }
+
+    // 1) Find paid orders containing this seller
+    const orders = await Order.find({
+      paymentStatus: "paid",
+      "items.seller": sellerId
+    })
+      .populate("items.product", "title price") // get product details
+      .populate("customer", "name email") // get customer details
+      .lean(); // convert to plain JS objects
+
+    // 2) Filter items per seller and reshape output
+    const filteredOrders = orders
+      .map(order => {
+        const sellerItems = (order.items || [])
+          .filter(item => item?.seller && item.seller.toString() === sellerId.toString())
+          .filter(item => item?.product)
+          .map(item => ({
+            productName: item.product.title,
+            quantity: item.quantity,
+            price: item.price,
+            status: item.status
+          }));
+
+        if (!order.customer || sellerItems.length === 0) return null;
+
+        return {
+          orderId: order._id,
+          paidAt: order.paidAt,
+          customerName: order.customer.name,
+          customerEmail: order.customer.email,
+          items: sellerItems
+        };
+      })
+      .filter(Boolean);
+
+    res.status(200).json({ orders: filteredOrders });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      message: "Failed to fetch seller orders",
+      error: error.message
+    });
+  }
+};

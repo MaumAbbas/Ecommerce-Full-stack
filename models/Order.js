@@ -18,7 +18,7 @@ const orderSchema = new mongoose.Schema({
             //we will use the seller id so we can track which item belogs to which seller and he can mark them shipped or other
             seller: {
                 type: mongoose.Schema.Types.ObjectId,
-                refrence: "User",
+                ref: "User",
                 required: true
             },
             quantity: {
@@ -49,7 +49,7 @@ const orderSchema = new mongoose.Schema({
         default: "pending"
     },
     paymentStatus: {
-        type: string,
+        type: String,
         enum: ["pending", "paid", "refunded", "failed"],
         default: "pending"
     },

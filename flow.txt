@@ -274,3 +274,152 @@ exports.me = (req, res) => {
 
 
 till 1 date we created only register and login we will continue further
+
+
+SQL	MongoDB Aggregation
+SELECT	$project
+WHERE	$match
+GROUP BY	$group
+JOIN	$lookup
+HAVING	$match (after $group)
+ORDER BY	$sort
+LIMIT	$limit
+
+
+//we can also use this exports.getSellerOrders = async (req, res) => {
+  try {
+    const userId = req.user?._id;
+    const role = req.user?.role;
+
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    if (role !== "seller") {
+      return res.status(403).json({ message: "Only sellers can access this route" });
+    }
+
+    // Convert logged-in seller id to ObjectId
+    const sellerId = new mongoose.Types.ObjectId(userId);
+
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 10));
+    const skip = (page - 1) * limit;
+
+    const orders = await Order.aggregate([
+      // Step 1: Filter only orders that are paid and contain seller's items and it will give us all items including different sellerId and will give all orders not one
+      {
+        $match: {
+          paymentStatus: "paid",
+          "items.seller": sellerId
+        }
+      },
+      // Step 2: Keep only seller's items and necessary fields the result form previous stage will be given to this and here we are using project it is like select and we want speific customer at the time he paid and items also but only those items  in order that are created by the seller so we are using seller id to mathc 
+      {
+        $project: {
+          customer: 1,
+          paidAt: 1, // Use your paidAt field instead of createdAt
+          items: {
+            $filter: {
+              input: "$items", //The array we want to filter
+              as: "item", //The signle item in array
+              cond: { $eq: ["$$item.seller", sellerId] }  //double dollor represent that item is variable of the filter
+            }
+          }
+        }
+      },
+      // Step 3: Lookup customer details from users collection
+      {
+        $lookup: {
+          from: "users",          // collection to join
+          localField: "customer", // field in orders
+          foreignField: "_id",    // field in users
+          as: "customer"          // store matched user info here
+        }
+      },
+      // Step 4: Convert customer array to single object
+      { $unwind: "$customer" },
+      {
+        $project: {
+          paidAt: 1,
+          items: 1,
+          customer: {
+            _id: "$customer._id",
+            name: "$customer.name",
+            email: "$customer.email"
+          }
+        }
+      },
+      { $sort: { paidAt: -1, _id: -1 } },
+      { $skip: skip },
+      { $limit: limit }
+    ]);
+
+    res.json({ page, limit, count: orders.length, orders });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+we can also use this 
+const mongoose = require("mongoose");
+const Order = require("../models/Order");
+
+// GET seller orders
+exports.getSellerOrders = async (req, res) => {
+  try {
+    const sellerId = new mongoose.Types.ObjectId(req.user._id);
+
+    const orders = await Order.aggregate([
+      // 1️⃣ Match paid orders containing this seller
+      {
+        $match: {
+          paymentStatus: "paid",
+          "items.seller": sellerId
+        }
+      },
+      // 2️⃣ Unwind items array
+      { $unwind: "$items" },
+      // 3️⃣ Keep only seller's items
+      { $match: { "items.seller": sellerId } },
+      // 4️⃣ Lookup product details
+      {
+        $lookup: {
+          from: "products",
+          localField: "items.product",
+          foreignField: "_id",
+          as: "product"
+        }
+      },
+      { $unwind: "$product" },
+      // 5️⃣ Lookup customer details
+      {
+        $lookup: {
+          from: "users",
+          localField: "customer",
+          foreignField: "_id",
+          as: "customer"
+        }
+      },
+      { $unwind: "$customer" },
+      // 6️⃣ Project only needed fields
+      {
+        $project: {
+          orderId: "$_id",
+          paidAt: 1,
+          productName: "$product.title",
+          quantity: "$items.quantity",
+          price: "$items.price",
+          shipped: "$items.status",
+          customerName: "$customer.name",
+          customerEmail: "$customer.email"
+        }
+      }
+    ]);
+
+    res.json({ orders });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Failed to fetch orders", error: error.message });
+  }
+};
