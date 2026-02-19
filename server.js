@@ -9,6 +9,7 @@ const cors = require("cors");
 
 const cookieParser = require("cookie-parser");
 const connectDB = require("./config/db"); // MongoDB connection
+const seedDefaultUsers = require("./utils/seedDefaultUsers");
 
 //In future this will be in another folder
 // const generateToken=require("./utils/generateToken") not using this now we update to refresha nd acces token 
@@ -29,15 +30,6 @@ app.use(cookieParser());
 // Routes (add later when ready)
 // app.use("/api/auth", require("./routes/authRoutes"));
 
-// Connect to MongoDB
-connectDB()
-// .then(()=>{
-  
-// })
-// .catch((err)=>{
-//   console.log("Db connection fail !!!!",err)
-// })
-
 //importing routes
 const authRoutes = require("./routes/authRoutes");
 const productRoutes =require("./routes/productRoutes");
@@ -51,6 +43,16 @@ app.use("/api/cart",cartRoutes)
 app.use("/api/order", orderRoutes)
 
 
-// Start the server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+const startServer = async () => {
+  try {
+    await connectDB();
+    await seedDefaultUsers();
+    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+  } catch (error) {
+    console.error("Server startup failed:", error.message);
+    process.exit(1);
+  }
+};
+
+startServer();
