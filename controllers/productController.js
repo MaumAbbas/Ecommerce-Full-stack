@@ -1,4 +1,6 @@
 const Product = require("../models/Product");
+const Category = require("../models/Category");
+const mongoose = require("mongoose");
 const cloudinary = require("../config/cloudinary");
 
 exports.createProduct = async (req, res) => {
@@ -17,6 +19,16 @@ exports.createProduct = async (req, res) => {
   const normalizedStock = stock === undefined || stock === null ? 0 : Number(stock);
   if (Number.isNaN(normalizedPrice) || Number.isNaN(normalizedStock)) {
     return res.status(400).json({ message: "Price and stock must be numbers" });
+  }
+
+  // Validate category early so invalid values don't become 500 cast errors.
+  if (!mongoose.Types.ObjectId.isValid(category)) {
+    return res.status(400).json({ message: "Invalid category id" });
+  }
+
+  const categoryExists = await Category.exists({ _id: category });
+  if (!categoryExists) {
+    return res.status(400).json({ message: "Category not found" });
   }
 
   // Change: guard against missing auth context to avoid crashing when req.user is undefined.
@@ -231,7 +243,16 @@ exports.updateProduct = async (req, res) => {
       }
       product.stock = normalizedStock;
     }
-    if (category !== undefined) product.category = category;
+    if (category !== undefined) {
+      if (!mongoose.Types.ObjectId.isValid(category)) {
+        return res.status(400).json({ message: "Invalid category id" });
+      }
+      const categoryExists = await Category.exists({ _id: category });
+      if (!categoryExists) {
+        return res.status(400).json({ message: "Category not found" });
+      }
+      product.category = category;
+    }
 
     // Price: allow both admin and seller to update
     if (price !== undefined) {
