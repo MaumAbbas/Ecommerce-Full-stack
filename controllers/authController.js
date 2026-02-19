@@ -385,3 +385,42 @@ exports.updateAccountDetails = async (req, res) => {
         return res.status(500).json({ message: err.message });
     }
 }
+
+// Admin creates user (seller/admin/customer) from dashboard
+exports.createUserByAdmin = async (req, res) => {
+    try {
+        const { name, email, password, role } = req.body;
+
+        if (!name?.trim() || !email?.trim() || !password?.trim()) {
+            return res.status(400).json({ message: "Name, email and password are required" });
+        }
+
+        const normalizedRole = (role || "seller").trim().toLowerCase();
+        const allowedRoles = ["admin", "seller", "customer"];
+        if (!allowedRoles.includes(normalizedRole)) {
+            return res.status(400).json({ message: "Invalid role" });
+        }
+
+        const existingUser = await User.findOne({
+            $or: [{ email: email.trim() }, { name: name.trim() }]
+        });
+
+        if (existingUser) {
+            return res.status(409).json({ message: "User already exists with this email or name" });
+        }
+
+        const user = await User.create({
+            name: name.trim(),
+            email: email.trim(),
+            password,
+            role: normalizedRole,
+        });
+
+        return res.status(201).json({
+            message: `${normalizedRole} account created successfully`,
+            user: getSafeUser(user),
+        });
+    } catch (err) {
+        return res.status(500).json({ message: err.message });
+    }
+}

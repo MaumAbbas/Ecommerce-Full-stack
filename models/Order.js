@@ -35,6 +35,11 @@ const orderSchema = new mongoose.Schema({
                 type: String,
                 enum: ["processing", "shipped", "delivered"],
                 default: "processing"
+            },
+            // Soft-clear flag so seller can remove old rows from dashboard without deleting the order.
+            hiddenForSeller: {
+                type: Boolean,
+                default: false
             }
         }
     ],
@@ -59,6 +64,15 @@ const orderSchema = new mongoose.Schema({
     },
     paidAt: {
         type: Date
+    },
+    // Soft-clear flags for role-specific dashboard cleanup.
+    hiddenForCustomer: {
+        type: Boolean,
+        default: false
+    },
+    hiddenForAdmin: {
+        type: Boolean,
+        default: false
     }
 
 }, { timestamps: true })

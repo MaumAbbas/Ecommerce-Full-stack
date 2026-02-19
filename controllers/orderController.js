@@ -239,8 +239,10 @@ exports.getSellerOrders = async (req, res) => {
       .map(order => {
         const sellerItems = (order.items || [])
           .filter(item => item?.seller && item.seller.toString() === sellerId.toString())
+          .filter(item => item.hiddenForSeller !== true)
           .filter(item => item?.product)
           .map(item => ({
+            itemId: item._id,
             productName: item.product.title,
             quantity: item.quantity,
             price: item.price,
@@ -252,6 +254,8 @@ exports.getSellerOrders = async (req, res) => {
         return {
           orderId: order._id,
           paidAt: order.paidAt,
+          orderStatus: order.status,
+          paymentStatus: order.paymentStatus,
           customerName: order.customer.name,
           customerEmail: order.customer.email,
           items: sellerItems
@@ -333,7 +337,7 @@ exports.getCustomerOrders = async (req, res) => {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const orders = await Order.find({ customer: userId })
+    const orders = await Order.find({ customer: userId, hiddenForCustomer: { $ne: true } })
       .populate("items.product", "title price")
       .lean();
 
@@ -368,6 +372,221 @@ exports.getCustomerOrders = async (req, res) => {
     res.status(200).json({ orders: trackedOrders });
   } catch (error) {
     res.status(500).json({ message: "Failed to fetch orders", error: error.message });
+  }
+};
+
+// Admin can view all orders across all customers and sellers
+exports.getAdminOrders = async (req, res) => {
+  try {
+    const orders = await Order.find({ hiddenForAdmin: { $ne: true } })
+      .populate("customer", "name email")
+      .populate("items.product", "title image")
+      .populate("items.seller", "name email")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const normalizedOrders = orders.map((order) => ({
+      orderId: order._id,
+      createdAt: order.createdAt,
+      paidAt: order.paidAt,
+      totalAmount: order.totalAmount,
+      paymentStatus: order.paymentStatus,
+      orderStatus: order.status,
+      customer: order.customer
+        ? {
+            name: order.customer.name,
+            email: order.customer.email,
+            id: order.customer._id,
+          }
+        : null,
+      items: (order.items || [])
+        .filter((item) => item?.product && item?.seller)
+        .map((item) => ({
+          itemId: item._id,
+          quantity: item.quantity,
+          price: item.price,
+          status: item.status,
+          product: {
+            id: item.product._id,
+            title: item.product.title,
+            image: item.product.image,
+          },
+          seller: {
+            id: item.seller._id,
+            name: item.seller.name,
+            email: item.seller.email,
+          },
+        })),
+    }));
+
+    return res.status(200).json({ orders: normalizedOrders });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to fetch admin orders",
+      error: error.message,
+    });
+  }
+};
+
+// Customer: clear one order from customer dashboard (soft-clear).
+exports.clearCustomerOrder = async (req, res) => {
+  try {
+    const userId = req.user?._id;
+    const { orderId } = req.params;
+
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    if (!Types.ObjectId.isValid(orderId)) {
+      return res.status(400).json({ message: "Invalid orderId" });
+    }
+
+    const order = await Order.findOne({
+      _id: orderId,
+      customer: userId,
+      hiddenForCustomer: { $ne: true },
+    });
+
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    order.hiddenForCustomer = true;
+    await order.save();
+
+    return res.status(200).json({ message: "Order cleared from customer dashboard" });
+  } catch (error) {
+    return res.status(500).json({ message: "Failed to clear order", error: error.message });
+  }
+};
+
+// Customer: clear all visible orders from customer dashboard (soft-clear).
+exports.clearAllCustomerOrders = async (req, res) => {
+  try {
+    const userId = req.user?._id;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const result = await Order.updateMany(
+      { customer: userId, hiddenForCustomer: { $ne: true } },
+      { $set: { hiddenForCustomer: true } }
+    );
+
+    return res.status(200).json({
+      message: "All customer orders cleared from dashboard",
+      modifiedCount: result.modifiedCount || 0,
+    });
+  } catch (error) {
+    return res.status(500).json({ message: "Failed to clear all orders", error: error.message });
+  }
+};
+
+// Seller: clear one order from seller dashboard by hiding seller-owned items only.
+exports.clearSellerOrder = async (req, res) => {
+  try {
+    const sellerId = req.user?._id;
+    const { orderId } = req.params;
+
+    if (!sellerId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    if (!Types.ObjectId.isValid(orderId)) {
+      return res.status(400).json({ message: "Invalid orderId" });
+    }
+
+    const order = await Order.findOne({ _id: orderId, "items.seller": sellerId });
+    if (!order) {
+      return res.status(404).json({ message: "Order not found for this seller" });
+    }
+
+    let changed = 0;
+    for (const item of order.items) {
+      if (
+        item?.seller &&
+        item.seller.toString() === sellerId.toString() &&
+        item.hiddenForSeller !== true
+      ) {
+        item.hiddenForSeller = true;
+        changed += 1;
+      }
+    }
+
+    if (changed === 0) {
+      return res.status(400).json({ message: "No visible seller items to clear in this order" });
+    }
+
+    await order.save();
+    return res.status(200).json({ message: "Order cleared from seller dashboard" });
+  } catch (error) {
+    return res.status(500).json({ message: "Failed to clear seller order", error: error.message });
+  }
+};
+
+// Seller: clear all visible order rows from seller dashboard by hiding seller-owned items.
+exports.clearAllSellerOrders = async (req, res) => {
+  try {
+    const sellerId = req.user?._id;
+    if (!sellerId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const result = await Order.updateMany(
+      { "items.seller": sellerId, "items.hiddenForSeller": { $ne: true } },
+      { $set: { "items.$[elem].hiddenForSeller": true } },
+      {
+        arrayFilters: [
+          { "elem.seller": sellerId, "elem.hiddenForSeller": { $ne: true } }
+        ],
+      }
+    );
+
+    return res.status(200).json({
+      message: "All seller orders cleared from dashboard",
+      modifiedCount: result.modifiedCount || 0,
+    });
+  } catch (error) {
+    return res.status(500).json({ message: "Failed to clear all seller orders", error: error.message });
+  }
+};
+
+// Admin: clear one order from admin dashboard (soft-clear).
+exports.clearAdminOrder = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    if (!Types.ObjectId.isValid(orderId)) {
+      return res.status(400).json({ message: "Invalid orderId" });
+    }
+
+    const order = await Order.findOne({ _id: orderId, hiddenForAdmin: { $ne: true } });
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    order.hiddenForAdmin = true;
+    await order.save();
+
+    return res.status(200).json({ message: "Order cleared from admin dashboard" });
+  } catch (error) {
+    return res.status(500).json({ message: "Failed to clear admin order", error: error.message });
+  }
+};
+
+// Admin: clear all visible orders from admin dashboard (soft-clear).
+exports.clearAllAdminOrders = async (req, res) => {
+  try {
+    const result = await Order.updateMany(
+      { hiddenForAdmin: { $ne: true } },
+      { $set: { hiddenForAdmin: true } }
+    );
+
+    return res.status(200).json({
+      message: "All admin orders cleared from dashboard",
+      modifiedCount: result.modifiedCount || 0,
+    });
+  } catch (error) {
+    return res.status(500).json({ message: "Failed to clear all admin orders", error: error.message });
   }
 };
 

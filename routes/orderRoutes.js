@@ -7,7 +7,14 @@ const {
   cancelOrder,
   getSellerOrders,
   markItemShipped,
-  getCustomerOrders
+  getCustomerOrders,
+  getAdminOrders,
+  clearCustomerOrder,
+  clearAllCustomerOrders,
+  clearSellerOrder,
+  clearAllSellerOrders,
+  clearAdminOrder,
+  clearAllAdminOrders
 } = require("../controllers/orderController");
 
 // Customer places an order from their cart.
@@ -22,5 +29,19 @@ router.get("/seller/orders", verifyJWT, authorize("seller"), getSellerOrders);
 router.patch("/seller/orders/:orderId/items/:itemId/ship", verifyJWT, authorize("seller"), markItemShipped);
 // Customer fetches order history with item-level tracking info.
 router.get("/customer/orders", verifyJWT, authorize("customer"), getCustomerOrders);
+// Customer clears a single order row from dashboard history.
+router.delete("/customer/orders/:orderId", verifyJWT, authorize("customer"), clearCustomerOrder);
+// Customer clears all order rows from dashboard history.
+router.delete("/customer/orders", verifyJWT, authorize("customer"), clearAllCustomerOrders);
+// Admin fetches all customer orders and seller item details.
+router.get("/admin/orders", verifyJWT, authorize("admin"), getAdminOrders);
+// Seller clears a single seller-visible order row.
+router.delete("/seller/orders/:orderId", verifyJWT, authorize("seller"), clearSellerOrder);
+// Seller clears all seller-visible order rows.
+router.delete("/seller/orders", verifyJWT, authorize("seller"), clearAllSellerOrders);
+// Admin clears a single order row from admin dashboard.
+router.delete("/admin/orders/:orderId", verifyJWT, authorize("admin"), clearAdminOrder);
+// Admin clears all orders from admin dashboard view.
+router.delete("/admin/orders", verifyJWT, authorize("admin"), clearAllAdminOrders);
 
 module.exports = router;
